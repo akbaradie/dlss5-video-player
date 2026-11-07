@@ -314,6 +314,7 @@ inline std::wstring Usage()
         L"                         --color-strength X (0-1). Each applies over --preset;\n"
         L"                         unset ones keep the player's saved settings.\n"
         L"  --processing-scale N   nr without sr: 100, 75 or 50.\n"
+        L"  --max-fps N            Cap source frame rate: 0 (source rate), 30 or 24.\n"
         L"  --encode Q             standard (8-bit), high (10-bit) or lossless encode.\n"
         L"  --sr-engine E          sr without nr: vsr (RTX VSR, recommended) or dlss.\n"
         L"  --history H            sr without nr, DLSS only: temporal or per-frame.\n"

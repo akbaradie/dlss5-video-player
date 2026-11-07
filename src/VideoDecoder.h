@@ -11,6 +11,7 @@
 #include "UntaggedColorPolicy.h"
 #include "HdrPolicy.h"
 #include "DisplayOrientationPolicy.h"
+#include "UpscalingPolicy.h"
 #include "HdrToneMapGpu.h"
 #include <atomic>
 #include <chrono>
@@ -243,6 +244,12 @@ public:
     uint32_t NativeWidth() const { return m_source.nativeWidth ? m_source.nativeWidth : m_source.width; }
     uint32_t NativeHeight() const { return m_source.nativeHeight ? m_source.nativeHeight : m_source.height; }
     double FrameRate() const { return m_source.fps; }
+    static void SetDefaultMaxFrameRate(uint32_t maxFps) noexcept;
+    static uint32_t DefaultMaxFrameRate() noexcept;
+    void SetMaxFrameRate(double maxFps) noexcept { m_maxFps = maxFps; }
+    double MaxFrameRate() const noexcept { return m_maxFps; }
+    uint32_t CappedFrameRate() const noexcept { return m_source.cappedFps; }
+    std::string FrameRateCapIdentityTerm() const { return ::FrameRateCapIdentityTerm(m_source.cappedFps); }
     double DurationSeconds() const { return m_source.durationSec; }
     bool IsStillImage() const { return m_source.stillImage; }
     bool IsAnimation() const { return m_source.gif; }
@@ -360,6 +367,7 @@ private:
         uint32_t nativeHeight = 0;
         int32_t stride = 0;
         double fps = 30.0;
+        uint32_t cappedFps = 0;
         // The rates the source itself reported, 0.0 for one it did not, kept
         // beside fps because fps is the number the decoder paces with - clamped,
         // rewritten to 1.0 for a still and 100.0 for a GIF, and 30.0 when the
@@ -586,4 +594,5 @@ private:
     std::wstring m_helperDirectory;
     FailureStage m_failureStage{FailureStage::None};
     std::shared_ptr<AccelerationMemo> m_accelerationMemo;
+    double m_maxFps = 0.0;
 };

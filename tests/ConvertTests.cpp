@@ -215,6 +215,8 @@ void render_contract_test()
           engine.command.history == UpscalingHistory::PerFrame);
     CHECK(render::Parse(PlayerArguments(ParseLine({L"a.mp4", L"--processing-scale", L"75"}), L"a.mp4", L"b.mkv"))
               .command.processingScale == 75u);
+    CHECK(render::Parse(PlayerArguments(ParseLine({L"a.mp4", L"--max-fps", L"30"}), L"a.mp4", L"b.mkv"))
+              .command.maxFps == 30u);
 
     // Every option the player's help names is one --render reads - forwarded,
     // set by convert, or one of the player's own (--help, and --probe's) - and

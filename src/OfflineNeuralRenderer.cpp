@@ -2275,8 +2275,10 @@ struct InjectedEncoderAdapter {
 struct ProductionSourceAdapter {
     VideoDecoder decoder;
     bool gpuConversion{true};
+    double maxFps{0.0};
     FrameReduction reduction;
     bool Open(const std::filesystem::path& path,std::stop_token stop,double seekSeconds){
+        decoder.SetMaxFrameRate(maxFps);
         if(!decoder.OpenSequential(path.wstring(),MediaSourceKind::LocalFile,stop,gpuConversion))return false;
         return seekSeconds<=0.0||decoder.SeekSeconds(seekSeconds);
     }
@@ -3294,6 +3296,7 @@ NeuralRenderResult OfflineNeuralRenderer::Run(const NeuralRenderRequest& request
     // A job that unwound without closing its decoder must not leave the next
     // one an open one; every other path already closes it.
     state.source.Close();
+    state.source.maxFps=request.fps;
     state.source.reduction.Configure(request);
     // The reduction reads BGRA; an NV12 source would reach it in the wrong
     // layout, so a reduced job decodes to BGRA whatever the setting says.

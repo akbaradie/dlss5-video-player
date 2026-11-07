@@ -1709,6 +1709,11 @@ static uint32_t ReadProcessingScale(const std::filesystem::path& settings){
     return IsProcessingScaleRung(saved)?saved:kDefaultProcessingScale;
 }
 
+static uint32_t ReadFrameRateCap(const std::filesystem::path& settings){
+    const UINT saved=GetPrivateProfileIntW(L"NeuralRender",L"FrameRateCap",kDefaultFrameRateCap,settings.c_str());
+    return IsFrameRateCapRung(saved)?saved:kDefaultFrameRateCap;
+}
+
 // The saved Super Resolution history, by name; anything else is the default.
 static UpscalingHistory ReadUpscalingHistory(const std::filesystem::path& settings){
     wchar_t saved[32]{};
@@ -2297,7 +2302,9 @@ private:
         // (DisplayOrientationPolicy.h). A quarter turn moves the key through
         // its width and height; a half turn or a mirror keeps both, so every
         // turned source names its turn, and every upright key stays as it was.
-        orientationTerm_=metadata.OrientationIdentityTerm();metadata.Close();
+        orientationTerm_=metadata.OrientationIdentityTerm();
+        frameRateCapTerm_=metadata.FrameRateCapIdentityTerm();
+        metadata.Close();
         if(!width_||!height_||!std::isfinite(fps_)||fps_<=0.0||!std::isfinite(duration_)||duration_<=0.0){completion_->result.detail=L"The source metadata is incomplete.";return false;}progressWidth_=width_;progressHeight_=height_;
         NeuralRenderProgress checking{};checking.phase=NeuralRenderPhase::CheckingCache;PostProgress(checking);
         const int64_t sourceDuration100ns=static_cast<int64_t>(std::llround(duration_*10000000.0));
@@ -2360,7 +2367,7 @@ private:
             <<(modelStore.recentlyWrittenFiles?" recentlyWritten="+std::to_string(modelStore.recentlyWrittenFiles):std::string{})
             <<(modelStore.trustedRewrites?" trustedRewrites="+std::to_string(modelStore.trustedRewrites):std::string{})
             <<(modelStore.reads>1?" reads="+std::to_string(modelStore.reads)+" waited="+std::to_string(modelStore.waited.count())+"ms on "+WideToUtf8(modelStore.youngestFile):std::string{}));
-        identity_=NeuralCacheIdentity{*sourceDigest_,width_,height_,std::string(kRenderCacheRevision),GpuGenerationPathName(in_.gpu),*runtimeDigest_,NeuralRenderPipelineIdentity(in_.gpuSourceConversion,KeyedNvencPreset(in_.nvencPreset,in_.cacheQuality),KeyedGpuColorConversion(in_.gpuColorConversion,in_.cacheQuality))+ProcessingScaleIdentityTerm(in_.processingScale)+UntaggedColorIdentityTerm(untaggedBt709_,in_.gpuSourceConversion)+toneMapTerm_+orientationTerm_+TemporalPipelineTerm(temporal)+NeuralMotionIdentityTerm(kNeuralZeroMotionTest)+CaptureQualityIdentityTerm({in_.captureDither,in_.cacheQuality,in_.sourceDeband,in_.suppliedExposure}),false,*settingsDigest_,range,guides.IsDefault()?std::string{}:CanonicalGuideControls(guides),WideToUtf8(in_.driverVersion),modelStore.digest};renderKey_=BuildNeuralCacheKey(identity_);completion_->renderKey=renderKey_;completion_->range=range;completion_->settings=settings;completion_->guides=guides;completion_->temporal=temporal;
+        identity_=NeuralCacheIdentity{*sourceDigest_,width_,height_,std::string(kRenderCacheRevision),GpuGenerationPathName(in_.gpu),*runtimeDigest_,NeuralRenderPipelineIdentity(in_.gpuSourceConversion,KeyedNvencPreset(in_.nvencPreset,in_.cacheQuality),KeyedGpuColorConversion(in_.gpuColorConversion,in_.cacheQuality))+ProcessingScaleIdentityTerm(in_.processingScale)+UntaggedColorIdentityTerm(untaggedBt709_,in_.gpuSourceConversion)+toneMapTerm_+orientationTerm_+frameRateCapTerm_+TemporalPipelineTerm(temporal)+NeuralMotionIdentityTerm(kNeuralZeroMotionTest)+CaptureQualityIdentityTerm({in_.captureDither,in_.cacheQuality,in_.sourceDeband,in_.suppliedExposure}),false,*settingsDigest_,range,guides.IsDefault()?std::string{}:CanonicalGuideControls(guides),WideToUtf8(in_.driverVersion),modelStore.digest};renderKey_=BuildNeuralCacheKey(identity_);completion_->renderKey=renderKey_;completion_->range=range;completion_->settings=settings;completion_->guides=guides;completion_->temporal=temporal;
         LOG("Checking neural cache key="<<renderKey_<<" range=["<<range.start100ns<<","<<range.end100ns<<") guides="<<CanonicalGuideControls(guides)<<" settings="<<CanonicalNeuralSettings(settings));
         if(const auto cached=cache_.LookupRender(renderKey_,stop_)){
             // LookupRender already verifies the full payload hash and
@@ -2657,6 +2664,7 @@ private:
     bool untaggedBt709_{};
     std::string toneMapTerm_;
     std::string orientationTerm_;
+    std::string frameRateCapTerm_;
     int64_t frameDurationTolerance_{},expectedDuration100ns_{};
     // PrepareRuntime
     std::filesystem::path runtimeDirectory_;
@@ -5306,6 +5314,8 @@ private:
         m_gpuSourceConversion=GetPrivateProfileIntW(L"Encoding",L"GpuSourceConversion",0,SettingsPath().c_str())!=0;
         m_nvencPreset=std::clamp<uint32_t>(uint32_t(GetPrivateProfileIntW(L"Encoding",L"NvencPreset",5,SettingsPath().c_str())),1,7);
         m_processingScale=ReadProcessingScale(SettingsPath());
+        m_frameRateCap=ReadFrameRateCap(SettingsPath());
+        VideoDecoder::SetDefaultMaxFrameRate(m_frameRateCap);
         m_upscalingHistory=ReadUpscalingHistory(SettingsPath());
         m_exportSelection.engine=ReadSuperResolutionEngine(SettingsPath());
         m_captureDither=GetPrivateProfileIntW(L"Encoding",L"CaptureDither",1,SettingsPath().c_str())!=0;
@@ -5452,6 +5462,7 @@ private:
         WritePrivateProfileStringW(L"Encoding",L"GpuSourceConversion",m_gpuSourceConversion?L"1":L"0",SettingsPath().c_str());
         WritePrivateProfileStringW(L"Encoding",L"NvencPreset",std::to_wstring(m_nvencPreset).c_str(),SettingsPath().c_str());
         WritePrivateProfileStringW(L"NeuralRender",L"ProcessingScale",std::to_wstring(m_processingScale).c_str(),SettingsPath().c_str());
+        WritePrivateProfileStringW(L"NeuralRender",L"FrameRateCap",std::to_wstring(m_frameRateCap).c_str(),SettingsPath().c_str());
         WritePrivateProfileStringW(L"Playback",L"UpscalingHistory",Utf8ToWide(std::string(UpscalingHistoryName(m_upscalingHistory))).c_str(),SettingsPath().c_str());
         WritePrivateProfileStringW(L"Encoding",L"CaptureDither",m_captureDither?L"1":L"0",SettingsPath().c_str());
         WritePrivateProfileStringW(L"Encoding",L"SourceDeband",m_sourceDeband?L"1":L"0",SettingsPath().c_str());
@@ -6282,6 +6293,8 @@ private:
                                MF_BYCOMMAND);
             CheckMenuRadioItem(menu,IDM_PROCESSING_SCALE_FIRST,IDM_PROCESSING_SCALE_LAST,
                                app_menu::CommandForProcessingScale(m_processingScale),MF_BYCOMMAND);
+            CheckMenuRadioItem(menu,app_menu::IDM_FRAME_RATE_CAP_FIRST,app_menu::IDM_FRAME_RATE_CAP_LAST,
+                               app_menu::CommandForFrameRateCap(m_frameRateCap),MF_BYCOMMAND);
             CheckMenuRadioItem(menu,IDM_UPSCALE_HISTORY_TEMPORAL,IDM_UPSCALE_HISTORY_PER_FRAME,
                                m_upscalingHistory==UpscalingHistory::PerFrame?IDM_UPSCALE_HISTORY_PER_FRAME:IDM_UPSCALE_HISTORY_TEMPORAL,
                                MF_BYCOMMAND);
@@ -7467,6 +7480,20 @@ private:
         LOG("Processing scale set to "<<percent<<"%.");
         SaveVideoSettings();
         SchedulePausedSettingsPreview();
+        SyncFeatureMenuState();
+    }
+
+    void SetFrameRateCap(uint32_t maxFps){
+        if(!IsFrameRateCapRung(maxFps))return;
+        if(maxFps==m_frameRateCap){SyncFeatureMenuState();return;}
+        m_frameRateCap=maxFps;
+        VideoDecoder::SetDefaultMaxFrameRate(maxFps);
+        LOG("Source frame rate cap set to "<<maxFps<<" fps.");
+        SaveVideoSettings();
+        if(m_loaded&&m_sourceKind==MediaSourceKind::LocalFile&&!m_path.empty()&&!ExportStagesBusy())
+            Load(m_path,m_displayTitle,m_sourceKind);
+        else
+            SchedulePausedSettingsPreview();
         SyncFeatureMenuState();
     }
 
@@ -13281,6 +13308,9 @@ private:
         case IDM_PROCESSING_SCALE_FIRST:case IDM_PROCESSING_SCALE_FIRST+1:case IDM_PROCESSING_SCALE_LAST:
             if(const auto percent=app_menu::ProcessingScaleForCommand(id))SetProcessingScale(*percent);
             break;
+        case app_menu::IDM_FRAME_RATE_CAP_FIRST:case app_menu::IDM_FRAME_RATE_CAP_FIRST+1:case app_menu::IDM_FRAME_RATE_CAP_LAST:
+            if(const auto maxFps=app_menu::FrameRateCapForCommand(id))SetFrameRateCap(*maxFps);
+            break;
         case IDM_UPSCALE_1080:SetUpscaleTarget(1080);break;
         case IDM_UPSCALE_1440:SetUpscaleTarget(1440);break;
         case IDM_UPSCALE_2160:SetUpscaleTarget(2160);break;
@@ -13659,6 +13689,7 @@ case IDM_EXPORT_STAGES:if(m_exportWorker.joinable())CancelExport();else ShowExpo
     // The resolution the model runs at, one of kProcessingScaleRungs. 100 on a
     // fresh install and never moved down by anything but the user.
     uint32_t m_processingScale=kDefaultProcessingScale;
+    uint32_t m_frameRateCap=kDefaultFrameRateCap;
     // Super Resolution's history for playback and for an export's SR stage on its
     // own (UpscalingPolicy.h). Per-frame on a fresh install.
     UpscalingHistory m_upscalingHistory=kRecommendedUpscalingHistory;
@@ -14100,6 +14131,7 @@ static int RunRenderCommand(const render_command::Parsed& parsed,const std::vect
     if(FAILED(CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED|COINIT_DISABLE_OLE1DDE)))return failed(L"COM could not be initialized.");
     if(FAILED(MFStartup(MF_VERSION,MFSTARTUP_FULL))){CoUninitialize();return failed(L"Media Foundation could not be started.");}
     return RunPlayerRuntime([&]() -> int {
+        VideoDecoder::SetDefaultMaxFrameRate(command.maxFps?*command.maxFps:ReadFrameRateCap(settings));
         VideoDecoder decoder;
         if(!decoder.OpenMetadata(input.wstring()))return failed(L"the input could not be read as a video or an image.");
         const uint32_t width=decoder.Width(),height=decoder.Height();

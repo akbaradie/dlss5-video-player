@@ -54,7 +54,8 @@ std::wstring StageExportEncodeSummary(const ExportPlan& plan,uint32_t sourceWidt
 std::vector<NeuralAddonOverride> RenderAddonOverrides(const std::filesystem::path& ini,
                                                       const NeuralSettings& settings,
                                                       uint32_t processingScale,
-                                                      GpuGeneration gpu){
+                                                      GpuGeneration gpu,
+                                                      bool upscales){
     std::vector<NeuralAddonOverride> overrides=NeuralAddonOverridesFor(settings,neural_runtime::Select(gpu,settings.previousRuntime));
     std::string current;
     if(const auto snapshot=ReadNeuralAddonSettingsSnapshot(ini)){
@@ -65,7 +66,7 @@ std::vector<NeuralAddonOverride> RenderAddonOverrides(const std::filesystem::pat
             current=snapshot->substr(begin,snapshot->find('\n',begin)-begin);
         }
     }
-    if(const auto order=PreUpscaleOverride(processingScale,current))
+    if(const auto order=PreUpscaleOverride(processingScale,current,upscales))
         overrides.emplace_back("NRPreUpscale",std::string(*order));
     return overrides;
 }
@@ -176,7 +177,7 @@ StageExportOutcome RunStageExport(const StageExportJob& job,std::stop_token stop
         // the model. The helper checks the same state itself and relaunches when
         // it had to change it; writing it here first saves that relaunch.
         const auto overrides=plan.requireNeural
-            ?RenderAddonOverrides(runtimeDirectory/L"ReShade.ini",job.neuralSettings,request.processingScale,job.gpu)
+            ?RenderAddonOverrides(runtimeDirectory/L"ReShade.ini",job.neuralSettings,request.processingScale,job.gpu,upscales)
             :std::vector<NeuralAddonOverride>{};
         const auto configured=ConfigureNeuralAddon(runtimeDirectory/L"ReShade.ini",plan.requireNeural,overrides);
         if(!configured.ok){

@@ -139,6 +139,18 @@ static bool PlausibleGeometry(uint32_t width, uint32_t height, bool stillImage) 
     return stillImage || uint64_t(width) * height <= kMaxVideoPixels;
 }
 
+namespace {
+std::atomic<uint32_t> g_defaultMaxFrameRate{0};
+}
+
+void VideoDecoder::SetDefaultMaxFrameRate(uint32_t maxFps) noexcept {
+    g_defaultMaxFrameRate.store(maxFps, std::memory_order_relaxed);
+}
+
+uint32_t VideoDecoder::DefaultMaxFrameRate() noexcept {
+    return g_defaultMaxFrameRate.load(std::memory_order_relaxed);
+}
+
 VideoDecoder::~VideoDecoder() { Close(); }
 
 void VideoDecoder::Swap(VideoDecoder& other) noexcept {
@@ -190,6 +202,7 @@ void VideoDecoder::Swap(VideoDecoder& other) noexcept {
     swap(m_helperDirectory,other.m_helperDirectory);
     swap(m_failureStage,other.m_failureStage);
     swap(m_accelerationMemo,other.m_accelerationMemo);
+    swap(m_maxFps,other.m_maxFps);
     if(restartThis)StartFrameQueue(QueueBuffer::Keep);
     if(restartOther)other.StartFrameQueue(QueueBuffer::Keep);
 }
@@ -601,6 +614,14 @@ bool VideoDecoder::ProbeFFmpeg(const std::wstring& path, std::stop_token stop) {
 
     // Avoid pathological metadata causing gigantic pacing delays/CPU usage.
     m_source.fps = std::clamp(m_source.fps, 1.0, 240.0);
+    {
+        const double maxFps = m_maxFps > 0.0 ? m_maxFps : double(DefaultMaxFrameRate());
+        const double capped = ApplyFrameRateCap(m_source.fps, maxFps, m_source.stillImage || m_source.gif);
+        if (capped != m_source.fps) {
+            m_source.fps = capped;
+            m_source.cappedFps = static_cast<uint32_t>(std::llround(maxFps));
+        }
+    }
 
     ProbePacketSpacing(path, inputOptions, stop);
     ProbeHdrPeak(path, inputOptions, stop);
@@ -1717,6 +1738,12 @@ bool VideoDecoder::OpenMediaFoundation(const std::wstring& path) {
         // rate and no frames-over-duration average, so there is no second rate to
         // corroborate it with and ConstantFrameRate() stays false.
         m_source.avgFrameRate = m_source.fps;
+        const double maxFps = m_maxFps > 0.0 ? m_maxFps : double(DefaultMaxFrameRate());
+        const double capped = ApplyFrameRateCap(m_source.fps, maxFps, false);
+        if (capped != m_source.fps) {
+            m_source.fps = capped;
+            m_source.cappedFps = static_cast<uint32_t>(std::llround(maxFps));
+        }
     }
 
     UINT32 strideU = 0;

@@ -26,7 +26,7 @@ inline constexpr int kExitCancelled = 5;
 // --render options that take a value and that dlss5-convert hands the player
 // as given, once each: the player validates them.
 inline constexpr std::wstring_view kForwardedValueOptions[] = {
-    L"--stages", L"--height", L"--multiplier", L"--preset", L"--processing-scale", L"--range",
+    L"--stages", L"--height", L"--multiplier", L"--preset", L"--processing-scale", L"--max-fps", L"--range",
     L"--passes", L"--style", L"--network", L"--intensity", L"--local-tone", L"--local-structure", L"--color-strength",
     L"--encode", L"--history", L"--sr-engine",
 };

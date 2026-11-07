@@ -198,6 +198,10 @@ inline constexpr UINT IDM_NEURAL_PRESET_CUSTOM = 479;
 // kProcessingScaleRungs (UpscalingPolicy.h): Source 100% first, then 75, 50.
 inline constexpr UINT IDM_PROCESSING_SCALE_FIRST = 480;
 inline constexpr UINT IDM_PROCESSING_SCALE_LAST = 482;
+// The source frame-rate cap rungs, one contiguous radio block in the order of
+// kFrameRateCapRungs (UpscalingPolicy.h): Source rate (0) first, then 30, 24.
+inline constexpr UINT IDM_FRAME_RATE_CAP_FIRST = 630;
+inline constexpr UINT IDM_FRAME_RATE_CAP_LAST = 632;
 // Super Resolution's history (UpscalingHistory, UpscalingPolicy.h), its own
 // contiguous radio block in the enum's order: Temporal first, then Per-frame
 // (the recommended default).
@@ -294,6 +298,9 @@ std::optional<YouTubeSourceQuality> YouTubeQualityForCommand(UINT command);
 // The processing-scale percentage a rung's command selects, and back.
 std::optional<uint32_t> ProcessingScaleForCommand(UINT command);
 UINT CommandForProcessingScale(uint32_t percent);
+// The source frame-rate cap a rung's command selects, and back.
+std::optional<uint32_t> FrameRateCapForCommand(UINT command);
+UINT CommandForFrameRateCap(uint32_t maxFps);
 UINT CommandForYouTubeQuality(YouTubeSourceQuality quality);
 bool UpdateYouTubeQualitySelection(HMENU menuBar, YouTubeSourceQuality quality);
 // The two toggles carry a checkmark for their active state; frame generation

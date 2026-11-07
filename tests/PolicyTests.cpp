@@ -7237,10 +7237,13 @@ void processing_scale_ladder_defaults_to_the_source_and_keys_every_rung_test()
     CHECK(ProcessingScaleIdentityTerm(75) == "|processing-scale-75-v2");
     CHECK(ProcessingScaleIdentityTerm(50) != ProcessingScaleIdentityTerm(75));
 
-    // The add-on order: the model ahead of the upscale below 100; at 100 the
-    // ini is left alone unless a reduced render left its 1 behind.
+    // The add-on order: the model ahead of the upscale below 100 or on an
+    // upscaled export; at 100 without upscaling the ini is left alone unless a
+    // reduced/upscaled render left its 1 behind.
     CHECK(PreUpscaleOverride(75, "") == std::optional<std::string_view>("1"));
     CHECK(PreUpscaleOverride(50, "0") == std::optional<std::string_view>("1"));
+    CHECK(PreUpscaleOverride(100, "", true) == std::optional<std::string_view>("1"));
+    CHECK(!PreUpscaleOverride(100, "1", true).has_value());
     CHECK(!PreUpscaleOverride(100, "").has_value());
     CHECK(!PreUpscaleOverride(100, "0").has_value());
     CHECK(PreUpscaleOverride(100, "1") == std::optional<std::string_view>("0"));
@@ -7251,6 +7254,21 @@ void processing_scale_ladder_defaults_to_the_source_and_keys_every_rung_test()
     CHECK(app_menu::ProcessingScaleForCommand(app_menu::IDM_PROCESSING_SCALE_FIRST + 1) == std::optional<uint32_t>(75));
     CHECK(!app_menu::ProcessingScaleForCommand(app_menu::IDM_PROCESSING_SCALE_LAST + 1).has_value());
     CHECK_EQ(app_menu::IDM_PROCESSING_SCALE_FIRST, app_menu::CommandForProcessingScale(60));
+
+    // Source frame-rate cap rungs, application, cache identity term, and menu commands.
+    CHECK(IsFrameRateCapRung(0) && IsFrameRateCapRung(30) && IsFrameRateCapRung(24) && !IsFrameRateCapRung(60));
+    CHECK_EQ(60.0, ApplyFrameRateCap(60.0, 0.0));
+    CHECK_EQ(30.0, ApplyFrameRateCap(60.0, 30.0));
+    CHECK_EQ(24.0, ApplyFrameRateCap(29.97, 24.0));
+    CHECK_EQ(24.0, ApplyFrameRateCap(24.0, 30.0));
+    CHECK_EQ(100.0, ApplyFrameRateCap(100.0, 30.0, true));
+    CHECK(FrameRateCapIdentityTerm(0).empty());
+    CHECK(FrameRateCapIdentityTerm(30) == "|fps-cap-30");
+    CHECK(FrameRateCapIdentityTerm(24) == "|fps-cap-24");
+    CHECK_EQ(app_menu::IDM_FRAME_RATE_CAP_FIRST, app_menu::CommandForFrameRateCap(0));
+    CHECK_EQ(app_menu::IDM_FRAME_RATE_CAP_LAST, app_menu::CommandForFrameRateCap(24));
+    CHECK(app_menu::FrameRateCapForCommand(app_menu::IDM_FRAME_RATE_CAP_FIRST + 1) == std::optional<uint32_t>(30));
+    CHECK(!app_menu::FrameRateCapForCommand(app_menu::IDM_FRAME_RATE_CAP_LAST + 1).has_value());
 
     // `--render --processing-scale` takes a rung, and only for the model at
     // the source size.
@@ -7264,6 +7282,10 @@ void processing_scale_ladder_defaults_to_the_source_and_keys_every_rung_test()
           render_command::Mode::BadArguments);
     CHECK(parse({L"--render", L"a.mp4", L"--stages", L"fg", L"--processing-scale", L"50"}).mode ==
           render_command::Mode::BadArguments);
+    const auto capped = parse({L"--render", L"a.mp4", L"--max-fps", L"30"});
+    CHECK(capped.mode == render_command::Mode::Render);
+    CHECK(capped.command.maxFps == std::optional<uint32_t>(30));
+    CHECK(parse({L"--render", L"a.mp4", L"--max-fps", L"60"}).mode == render_command::Mode::BadArguments);
 }
 
 // The reduction the model sees below 100%: the exact coverage-weighted mean,
@@ -14674,8 +14696,7 @@ void neural_presets_round_trip_and_default_to_the_shipped_settings_test()
 void neural_runtime_choice_follows_the_gpu_and_never_sends_the_default_preset_test()
 {
     using namespace neural_runtime;
-    for (const GpuGeneration gpu : {GpuGeneration::Unsupported, GpuGeneration::Rtx20Turing,
-                                    GpuGeneration::Rtx30Ampere, GpuGeneration::Rtx40Ada}) {
+    for (const GpuGeneration gpu : {GpuGeneration::Unsupported, GpuGeneration::OtherNvidia}) {
         CHECK(!OffersCurrent(gpu));
         CHECK_EQ(kPrevious.version, Select(gpu, false).version);
         CHECK_EQ(kPrevious.version, Select(gpu, true).version);
@@ -14687,10 +14708,14 @@ void neural_runtime_choice_follows_the_gpu_and_never_sends_the_default_preset_te
         ApplyChoice(gpu, 0, network, previous);
         CHECK(network == Network::B && !previous);
     }
+    for (const GpuGeneration gpu : {GpuGeneration::Rtx20Turing, GpuGeneration::Rtx30Ampere,
+                                    GpuGeneration::Rtx40Ada, GpuGeneration::Rtx50Blackwell}) {
+        CHECK(OffersCurrent(gpu));
+        CHECK_EQ(kCurrent.version, Select(gpu, false).version);
+        CHECK_EQ(kPrevious.version, Select(gpu, true).version);
+        CHECK_EQ(size_t{3}, ChoiceCount(gpu));
+    }
     const GpuGeneration rtx50 = GpuGeneration::Rtx50Blackwell;
-    CHECK(OffersCurrent(rtx50));
-    CHECK_EQ(kCurrent.version, Select(rtx50, false).version);
-    CHECK_EQ(kPrevious.version, Select(rtx50, true).version);
 
     // 310.8.SF-v2 has no B: asked for, it renders A and says A.
     CHECK(Effective(kCurrent, Network::B) == Network::B);

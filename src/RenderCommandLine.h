@@ -81,6 +81,8 @@ struct Command {
     std::optional<SuperResolutionEngine> engine;
     // One of kProcessingScaleRungs; empty uses the saved processing scale.
     std::optional<uint32_t> processingScale;
+    // One of kFrameRateCapRungs; empty uses the saved frame-rate cap.
+    std::optional<uint32_t> maxFps;
     // Stages, output rung and multiplier, in the dialog's own vocabulary so the
     // plan comes out of the same PlanExport.
     ExportSelection selection;
@@ -195,7 +197,7 @@ inline Parsed Parse(std::span<const std::wstring> userArguments)
     Command& command = parsed.command;
     bool seenRender = false, seenRange = false, seenPreset = false, seenStages = false,
          seenHeight = false, seenMultiplier = false, seenOut = false, seenQuiet = false,
-         seenScale = false, seenPasses = false, seenIntensity = false, seenTone = false,
+         seenScale = false, seenMaxFps = false, seenPasses = false, seenIntensity = false, seenTone = false,
          seenStructure = false, seenColor = false, seenEncode = false, seenHistory = false, seenEngine = false,
          seenStyle = false, seenNetwork = false;
     std::wstring_view presetName;
@@ -284,6 +286,12 @@ inline Parsed Parse(std::span<const std::wstring> userArguments)
             if (!percent || !IsProcessingScaleRung(*percent))
                 return bad(L"--processing-scale takes 100, 75 or 50.");
             command.processingScale = *percent;
+        } else if (argument == L"--max-fps") {
+            if (!once(seenMaxFps)) return bad(L"--max-fps was given twice.");
+            const auto cap = ParseCount(value);
+            if (!cap || !IsFrameRateCapRung(*cap))
+                return bad(L"--max-fps takes 0, 30 or 24.");
+            command.maxFps = *cap;
         } else if (argument == L"--passes") {
             if (!once(seenPasses)) return bad(L"--passes was given twice.");
             const auto passes = ParseCount(value);
@@ -456,6 +464,9 @@ inline std::wstring Usage()
         L"                     the source: 100, 75 or 50, restored to the source size by\n"
         L"                     Super Resolution. For nr without sr. Default: the player's\n"
         L"                     saved setting, 100 unless changed.\n"
+        L"  --max-fps N        Cap source frame rate before decoding and neural rendering:\n"
+        L"                     0 (source rate), 30 or 24. Default: the player's saved\n"
+        L"                     setting, 0 unless changed.\n"
         L"  --range START-END  Render only this part, e.g. 0:10-0:25 or f0-f300. Needs sr\n"
         L"                     or nr. Default: the whole source.\n"
         L"  --out FILE         The file to write, in the container its extension names:\n"

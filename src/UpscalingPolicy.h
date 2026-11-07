@@ -245,14 +245,46 @@ inline std::string ProcessingScaleIdentityTerm(uint32_t percent) {
 
 // The add-on's NRPreUpscale a render at `percent` needs, given the value its
 // ini holds now (empty when the key is absent), or nothing to write. A reduced
-// rung needs the model ahead of the upscale (1). At 100 the player writes
-// nothing unless a reduced render left 1 behind, which it puts back to the
-// add-on's default (0) - so a default render's settings, and with them its
-// cache key, stay exactly what they were before the rungs existed.
-inline std::optional<std::string_view> PreUpscaleOverride(uint32_t percent, std::string_view current) {
-    if (percent != kDefaultProcessingScale) return std::string_view("1");
+// rung (or an upscaled export pass) needs the model ahead of the upscale (1).
+// At 100 without upscaling the player writes nothing unless a reduced render
+// left 1 behind, which it puts back to the add-on's default (0) - so a default
+// render's settings, and with them its cache key, stay exactly what they were
+// before the rungs existed.
+inline std::optional<std::string_view> PreUpscaleOverride(uint32_t percent, std::string_view current,
+                                                          bool upscales = false) {
+    if (percent != kDefaultProcessingScale || upscales) return std::string_view("1");
     if (!current.empty() && current != "0") return std::string_view("0");
     return std::nullopt;
+}
+
+// ---- Frame-rate cap ------------------------------------------------------
+//
+// Optional ceiling on the decoded frame rate (0 = uncapped source rate, 30 or
+// 24 fps). High-frame-rate sources (e.g. 60 fps) double the frames the neural
+// model must evaluate per second; capping the decoder's CFR output rate at 30
+// or 24 fps halves the neural evaluations while keeping audio and presentation
+// timestamps synchronized on the wall clock.
+inline constexpr uint32_t kFrameRateCapRungs[]{0, 30, 24};
+inline constexpr uint32_t kDefaultFrameRateCap = 0;
+
+inline constexpr bool IsFrameRateCapRung(uint32_t maxFps) noexcept {
+    for (const uint32_t rung : kFrameRateCapRungs)
+        if (rung == maxFps) return true;
+    return false;
+}
+
+inline constexpr double ApplyFrameRateCap(double sourceFps, double maxFps,
+                                          bool stillOrAnimation = false) noexcept {
+    if (!stillOrAnimation && maxFps > 0.0 && sourceFps > maxFps + 0.01) return maxFps;
+    return sourceFps;
+}
+
+// The cache-key term added when a source's frame rate was reduced by a cap.
+// Empty when uncapped or when the source was already at or below the cap, so
+// existing renders of 24/30 fps sources and uncapped renders keep their keys.
+inline std::string FrameRateCapIdentityTerm(uint32_t appliedCapFps) {
+    if (appliedCapFps == kDefaultFrameRateCap) return {};
+    return "|fps-cap-" + std::to_string(appliedCapFps);
 }
 
 // The playback upscaler as Enhance's three radios show it. The player keeps

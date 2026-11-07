@@ -71,7 +71,8 @@ std::wstring StageExportRuntimeRefusal(const std::filesystem::path& runtimeDirec
 std::vector<NeuralAddonOverride> RenderAddonOverrides(const std::filesystem::path& ini,
                                                       const NeuralSettings& settings,
                                                       uint32_t processingScale,
-                                                      GpuGeneration gpu);
+                                                      GpuGeneration gpu,
+                                                      bool upscales = false);
 
 // ---- The passes themselves -----------------------------------------------
 

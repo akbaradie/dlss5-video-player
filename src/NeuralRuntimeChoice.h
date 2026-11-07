@@ -55,7 +55,11 @@ inline constexpr Runtime kPrevious{"310.8.SF-v2", L"310.8.SF-v2/nvngx_dlssnr.dll
 
 // Whether this GPU is offered 310.9.16 at all; where it is not, the choice of
 // runtime is not the user's and the dialog says so.
-inline bool OffersCurrent(GpuGeneration gpu) { return gpu == GpuGeneration::Rtx50Blackwell; }
+inline bool OffersCurrent(GpuGeneration gpu)
+{
+    return gpu == GpuGeneration::Rtx50Blackwell || gpu == GpuGeneration::Rtx40Ada ||
+           gpu == GpuGeneration::Rtx30Ampere || gpu == GpuGeneration::Rtx20Turing;
+}
 
 inline const Runtime& Select(GpuGeneration gpu, bool previousRequested)
 {

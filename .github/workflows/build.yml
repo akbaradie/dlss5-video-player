@@ -2,7 +2,7 @@ name: build-windows
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'feat/**' ]
   pull_request:
   workflow_dispatch:
 
@@ -86,6 +86,7 @@ jobs:
           path: |
             build-ci/Release/DLSSVideoPlayer.exe
             build-ci/Release/DLSSVideoPlayer.pdb
+            build-ci/Release/dlss5-convert.exe
             build-ci/Release/neural-runtime/NeuralWorker.exe
             build-ci/Release/neural-runtime/NeuralWorker.pdb
           if-no-files-found: error

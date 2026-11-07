@@ -384,6 +384,15 @@ HMENU CreateMenuBar(const Localizer& localizer, bool youtubeAvailable, const key
     CheckMenuRadioItem(processingScale, IDM_PROCESSING_SCALE_FIRST, IDM_PROCESSING_SCALE_LAST,
                        CommandForProcessingScale(kDefaultProcessingScale), MF_BYCOMMAND);
     popup(enhance, processingScale, L"menu.processing_scale");
+    HMENU frameRateCap = CreatePopupMenu();
+    add(frameRateCap, 0, L"menu.frame_rate_cap_measured", MF_GRAYED);
+    separator(frameRateCap);
+    add(frameRateCap, IDM_FRAME_RATE_CAP_FIRST, L"menu.frame_rate_cap_0");
+    add(frameRateCap, IDM_FRAME_RATE_CAP_FIRST + 1, L"menu.frame_rate_cap_30");
+    add(frameRateCap, IDM_FRAME_RATE_CAP_FIRST + 2, L"menu.frame_rate_cap_24");
+    CheckMenuRadioItem(frameRateCap, IDM_FRAME_RATE_CAP_FIRST, IDM_FRAME_RATE_CAP_LAST,
+                       CommandForFrameRateCap(kDefaultFrameRateCap), MF_BYCOMMAND);
+    popup(enhance, frameRateCap, L"menu.frame_rate_cap");
     add(enhance, IDM_PAUSE_NEURAL_RENDER, L"menu.pause_neural_render");
     separator(enhance);
     // Look before you commit, then commit.
@@ -716,6 +725,19 @@ UINT CommandForProcessingScale(uint32_t percent)
     return IDM_PROCESSING_SCALE_FIRST;
 }
 
+std::optional<uint32_t> FrameRateCapForCommand(UINT command)
+{
+    if (command < IDM_FRAME_RATE_CAP_FIRST || command > IDM_FRAME_RATE_CAP_LAST) return std::nullopt;
+    return kFrameRateCapRungs[command - IDM_FRAME_RATE_CAP_FIRST];
+}
+
+UINT CommandForFrameRateCap(uint32_t maxFps)
+{
+    for (UINT index = 0; index < UINT(std::size(kFrameRateCapRungs)); ++index)
+        if (kFrameRateCapRungs[index] == maxFps) return IDM_FRAME_RATE_CAP_FIRST + index;
+    return IDM_FRAME_RATE_CAP_FIRST;
+}
+
 std::optional<YouTubeSourceQuality> YouTubeQualityForCommand(UINT command)
 {
     switch (command) {
@@ -952,6 +974,7 @@ void CollectMenuShortcuts(HMENU menu, const std::wstring& group, std::vector<Sho
         // for what each one measured ("14.8 fps", "63-94"), not for a key, and the
         // sheet listed them as keys.
         if (item.wID >= IDM_PROCESSING_SCALE_FIRST && item.wID <= IDM_PROCESSING_SCALE_LAST) continue;
+        if (item.wID >= IDM_FRAME_RATE_CAP_FIRST && item.wID <= IDM_FRAME_RATE_CAP_LAST) continue;
         if (item.wID == IDM_UPSCALE_HISTORY_TEMPORAL || item.wID == IDM_UPSCALE_HISTORY_PER_FRAME) continue;
         const std::wstring_view label(text);
         const size_t tab = label.find(L'\t');
