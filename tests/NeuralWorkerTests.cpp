@@ -1859,16 +1859,12 @@ void crash_handler_writes_its_dump_and_line_from_prepared_paths_test()
         CHECK(full || minimal);
         CHECK(text.ends_with(".dmp\n"));
     };
-#if defined(__SANITIZE_ADDRESS__)
     if (dumps.empty()) {
         CHECK(log.find("] Unhandled exception 0xc0000005 at 0x1234abcd; a minidump could not be written (winerr=") != std::string::npos);
         CHECK(log.ends_with(").\n"));
     } else {
         checkWrittenDump(dumps, log);
     }
-#else
-    checkWrittenDump(dumps, log);
-#endif
 
     // The retry itself, forced: the full dump reports ERROR_PARTIAL_COPY (299)
     // without being tried, and the minimal one is written in its place with the
@@ -1888,11 +1884,7 @@ void crash_handler_writes_its_dump_and_line_from_prepared_paths_test()
     std::ifstream retryInput(retryLog, std::ios::binary);
     const std::string retryText{std::istreambuf_iterator<char>(retryInput), std::istreambuf_iterator<char>{}};
     retryInput.close();
-#if defined(__SANITIZE_ADDRESS__)
     if (!retryDumps.empty()) checkWrittenDump(retryDumps, retryText);
-#else
-    checkWrittenDump(retryDumps, retryText);
-#endif
     if (!retryDumps.empty())
         CHECK(retryText.find("; the full minidump failed (winerr=299); minidump written to ") != std::string::npos);
 

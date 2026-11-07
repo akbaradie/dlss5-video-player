@@ -7243,7 +7243,7 @@ void processing_scale_ladder_defaults_to_the_source_and_keys_every_rung_test()
     CHECK(PreUpscaleOverride(75, "") == std::optional<std::string_view>("1"));
     CHECK(PreUpscaleOverride(50, "0") == std::optional<std::string_view>("1"));
     CHECK(PreUpscaleOverride(100, "", true) == std::optional<std::string_view>("1"));
-    CHECK(!PreUpscaleOverride(100, "1", true).has_value());
+    CHECK(PreUpscaleOverride(100, "1", true) == std::optional<std::string_view>("1"));
     CHECK(!PreUpscaleOverride(100, "").has_value());
     CHECK(!PreUpscaleOverride(100, "0").has_value());
     CHECK(PreUpscaleOverride(100, "1") == std::optional<std::string_view>("0"));
